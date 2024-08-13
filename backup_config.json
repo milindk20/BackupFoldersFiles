@@ -1,0 +1,12 @@
+{
+    "run_enabled": "Y",
+    "source_dirs": [
+        "C:\\Users\\Milind\\Music\\"
+    ],
+    "dest_dirs": [
+        "D:\\AutoBackup\\Music\\"
+    ],
+    "log_file": "backupFoldersFiles.log",
+    "error_log_file": "error.log",
+    "sleep_time": 30
+}
