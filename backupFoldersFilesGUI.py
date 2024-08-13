@@ -103,16 +103,16 @@ def select_directory(entry_field):
             entry_field.insert(tk.END, directory)
 
 
-def view_log():
-    config = load_config()
-    log_file = config['log_file']
+def view_log(log_file, log_text_widget):
     if os.path.exists(log_file):
         with open(log_file, 'r') as file:
-            log_text.delete(1.0, tk.END)
-            log_text.insert(tk.END, file.read())
+            lines = file.readlines()
+            lines.reverse()  # Reverse the log order to display newest first
+            log_text_widget.delete(1.0, tk.END)
+            log_text_widget.insert(tk.END, ''.join(lines))
     else:
-        log_text.delete(1.0, tk.END)
-        log_text.insert(tk.END, "Log file not found.")
+        log_text_widget.delete(1.0, tk.END)
+        log_text_widget.insert(tk.END, "Log file not found.")
 
 
 # Load the initial configuration and update the timestamp
@@ -127,8 +127,10 @@ root.geometry("800x600")
 tab_control = ttk.Notebook(root)
 home_tab = ttk.Frame(tab_control)
 config_tab = ttk.Frame(tab_control)
+error_tab = ttk.Frame(tab_control)
 tab_control.add(home_tab, text="Home")
 tab_control.add(config_tab, text="Configuration")
+tab_control.add(error_tab, text="Errors")
 tab_control.pack(expand=1, fill="both")
 
 # Home Tab
@@ -157,7 +159,7 @@ log_frame = tk.LabelFrame(home_tab, text="Logs", padx=10, pady=10)
 log_frame.grid(row=1, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
 log_text = scrolledtext.ScrolledText(log_frame, width=90, height=15)
 log_text.pack(padx=10, pady=10)
-tk.Button(log_frame, text="View Logs", command=view_log).pack(padx=10, pady=5)
+tk.Button(log_frame, text="View Logs", command=lambda: view_log(config['log_file'], log_text)).pack(padx=10, pady=5)
 
 # Configuration Tab
 
@@ -206,8 +208,18 @@ tk.Button(config_tab, text="Save Configuration", command=update_config).grid(row
 timestamp_label = tk.Label(config_tab, text="Last Modified: ", fg="blue")
 timestamp_label.grid(row=7, column=1, padx=10, pady=10, sticky="w")
 
+# Error Tab
+
+error_log_frame = tk.LabelFrame(error_tab, text="Error Logs", padx=10, pady=10)
+error_log_frame.pack(fill="both", expand=True, padx=10, pady=10)
+error_log_text = scrolledtext.ScrolledText(error_log_frame, width=90, height=25)
+error_log_text.pack(padx=10, pady=10)
+tk.Button(error_log_frame, text="View Error Logs", command=lambda: view_log(config['error_log_file'], error_log_text)).pack(padx=10, pady=5)
+
 # Initialize the timestamp label with the current timestamp
 update_timestamp()
+
+# Initialize the home status
 update_home_status()
 
 # Run the GUI loop
