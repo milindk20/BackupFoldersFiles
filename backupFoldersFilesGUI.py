@@ -1,38 +1,81 @@
 import os
-import time
-import shutil
-import hashlib
-import logging
-import json
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, scrolledtext
+import json
+import subprocess
+import psutil
 from datetime import datetime
 
 CONFIG_FILE = 'backup_config.json'
+SCRIPT_FILE = 'backupFoldersFiles.py'
+
 
 def load_config():
     with open(CONFIG_FILE, 'r') as file:
         return json.load(file)
+
 
 def save_config(data):
     with open(CONFIG_FILE, 'w') as file:
         json.dump(data, file, indent=4)
     update_timestamp()
 
+
 def get_last_modified_time():
-    """Return the last modified time of the configuration file."""
     if os.path.exists(CONFIG_FILE):
         return os.path.getmtime(CONFIG_FILE)
     return None
 
+
 def update_timestamp():
-    """Update the timestamp label with the last modified time of the configuration file."""
     timestamp = get_last_modified_time()
     if timestamp:
         last_modified = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-        timestamp_label.config(text=f"Configuration File: Last Modified: {last_modified}")
+        timestamp_label.config(text=f"Last Modified: {last_modified}")
     else:
         timestamp_label.config(text="No configuration file found.")
+
+
+def toggle_service(enable):
+    config = load_config()
+    config['run_enabled'] = enable
+    save_config(config)
+    update_home_status()
+
+
+def is_script_running(script_name):
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        if proc.info['cmdline'] and script_name in proc.info['cmdline']:
+            return True
+    return False
+
+
+def update_home_status():
+    config = load_config()
+    if config.get('run_enabled') == 'Y':
+        service_status_label.config(text="Service Enabled", bg="green")
+    else:
+        service_status_label.config(text="Service Disabled", bg="red")
+
+    script_running = is_script_running(SCRIPT_FILE)
+    if script_running:
+        script_status_label.config(text="Script Running", bg="green")
+    else:
+        script_status_label.config(text="Script Not Running", bg="red")
+
+
+def start_script():
+    if not is_script_running(SCRIPT_FILE):
+        subprocess.Popen(["python", SCRIPT_FILE])
+    update_home_status()
+
+
+def stop_script():
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        if proc.info['cmdline'] and SCRIPT_FILE in proc.info['cmdline']:
+            proc.terminate()
+    update_home_status()
+
 
 def update_config():
     try:
@@ -46,9 +89,9 @@ def update_config():
         }
         save_config(config)
         messagebox.showinfo("Success", "Configuration saved successfully!")
-        update_home_status()
     except Exception as e:
         messagebox.showerror("Error", f"Failed to save configuration: {e}")
+
 
 def select_directory(entry_field):
     directory = filedialog.askdirectory()
@@ -59,30 +102,18 @@ def select_directory(entry_field):
         else:
             entry_field.insert(tk.END, directory)
 
-def update_home_status():
-    """Update the status on the Home tab."""
-    config = load_config()
-    run_enabled = config.get('run_enabled', 'N')
-    if run_enabled.upper() == 'Y':
-        status_label.config(text="Running", bg="green")
-    else:
-        status_label.config(text="Not Running", bg="red")
 
-def toggle_service(status):
-    """Toggle the backup service by changing the run_enabled option."""
-    config = load_config()
-    config['run_enabled'] = status
-    save_config(config)
-    update_home_status()
-
-def view_log_file():
-    """Open the log file in a text viewer."""
+def view_log():
     config = load_config()
     log_file = config['log_file']
     if os.path.exists(log_file):
-        os.system(f'notepad {log_file}')
+        with open(log_file, 'r') as file:
+            log_text.delete(1.0, tk.END)
+            log_text.insert(tk.END, file.read())
     else:
-        messagebox.showerror("Error", f"Log file '{log_file}' not found.")
+        log_text.delete(1.0, tk.END)
+        log_text.insert(tk.END, "Log file not found.")
+
 
 # Load the initial configuration and update the timestamp
 config = load_config()
@@ -90,26 +121,45 @@ config = load_config()
 # Create the main window
 root = tk.Tk()
 root.title("Backup Configuration")
+root.geometry("800x600")
 
-# Create a Notebook for tabs
-notebook = ttk.Notebook(root)
-notebook.pack(fill='both', expand=True)
+# Create tabs
+tab_control = ttk.Notebook(root)
+home_tab = ttk.Frame(tab_control)
+config_tab = ttk.Frame(tab_control)
+tab_control.add(home_tab, text="Home")
+tab_control.add(config_tab, text="Configuration")
+tab_control.pack(expand=1, fill="both")
 
 # Home Tab
-home_tab = tk.Frame(notebook, padx=10, pady=10)
-notebook.add(home_tab, text="Home")
 
-status_label = tk.Label(home_tab, text="Not Running", font=("Helvetica", 16), width=15, height=2)
-status_label.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
-update_home_status()
+# Service Status Section
+service_frame = tk.LabelFrame(home_tab, text="Service Status", padx=10, pady=10)
+service_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+service_status_label = tk.Label(service_frame, text="Service Disabled", bg="red", width=25)
+service_status_label.pack(padx=10, pady=10)
+tk.Button(service_frame, text="Enable Service", command=lambda: toggle_service('Y'), width=20).pack(padx=10, pady=5)
+tk.Button(service_frame, text="Disable Service", command=lambda: toggle_service('N'), width=20).pack(padx=10, pady=5)
 
-tk.Button(home_tab, text="Start Service", command=lambda: toggle_service('Y'), width=20).grid(row=1, column=0, padx=10, pady=5)
-tk.Button(home_tab, text="Stop Service", command=lambda: toggle_service('N'), width=20).grid(row=1, column=1, padx=10, pady=5)
-tk.Button(home_tab, text="View Log File", command=view_log_file, width=20).grid(row=2, column=0, columnspan=2, padx=10, pady=20)
+# Refresh Status Button
+tk.Button(home_tab, text="Refresh Status", command=update_home_status, width=20).grid(row=0, column=1, padx=10, pady=5)
+
+# Script Execution Section
+script_frame = tk.LabelFrame(home_tab, text="Script Execution", padx=10, pady=10)
+script_frame.grid(row=0, column=2, padx=10, pady=10, sticky="nsew")
+script_status_label = tk.Label(script_frame, text="Script Not Running", bg="red", width=25)
+script_status_label.pack(padx=10, pady=10)
+tk.Button(script_frame, text="Start Script", command=start_script, width=20).pack(padx=10, pady=5)
+tk.Button(script_frame, text="Stop Script", command=stop_script, width=20).pack(padx=10, pady=5)
+
+# Log Viewing Section
+log_frame = tk.LabelFrame(home_tab, text="Logs", padx=10, pady=10)
+log_frame.grid(row=1, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
+log_text = scrolledtext.ScrolledText(log_frame, width=90, height=15)
+log_text.pack(padx=10, pady=10)
+tk.Button(log_frame, text="View Logs", command=view_log).pack(padx=10, pady=5)
 
 # Configuration Tab
-config_tab = tk.Frame(notebook, padx=10, pady=10)
-notebook.add(config_tab, text="Configuration")
 
 # Run Enabled
 tk.Label(config_tab, text="Run Enabled (Y/N)").grid(row=0, column=0, padx=10, pady=5, sticky="w")
@@ -153,11 +203,12 @@ sleep_time_entry.insert(tk.END, config['sleep_time'])
 tk.Button(config_tab, text="Save Configuration", command=update_config).grid(row=6, column=1, pady=20)
 
 # Timestamp Label
-timestamp_label = tk.Label(config_tab, text="Configuration File: Last Modified: ", fg="blue")
+timestamp_label = tk.Label(config_tab, text="Last Modified: ", fg="blue")
 timestamp_label.grid(row=7, column=1, padx=10, pady=10, sticky="w")
 
 # Initialize the timestamp label with the current timestamp
 update_timestamp()
+update_home_status()
 
 # Run the GUI loop
 root.mainloop()
