@@ -186,34 +186,12 @@ def set_run_at_startup(enable):
                 shortcut.Save()
             elif os.path.exists(shortcut_path):
                 os.remove(shortcut_path)
+
         elif system_platform == 'Linux':
             startup_file = os.path.expanduser(f'~/.config/autostart/{SCRIPT_FILE}.desktop')
             if enable == 'Y':
                 with open(startup_file, 'w') as file:
                     file.write(f'[Desktop Entry]\nType=Application\nExec=python3 "{os.path.abspath(SCRIPT_FILE)}"\nHidden=false\nNoDisplay=false\nX-GNOME-Autostart-enabled=true\nName={SCRIPT_FILE}')
-            elif os.path.exists(startup_file):
-                os.remove(startup_file)
-        elif system_platform == 'Darwin':  # macOS
-            startup_file = os.path.expanduser(f'~/Library/LaunchAgents/{SCRIPT_FILE}.plist')
-            if enable == 'Y':
-                plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-                <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-                <plist version="1.0">
-                <dict>
-                    <key>Label</key>
-                    <string>{SCRIPT_FILE}</string>
-                    <key>ProgramArguments</key>
-                    <array>
-                        <string>python3</string>
-                        <string>{os.path.abspath(SCRIPT_FILE)}</string>
-                    </array>
-                    <key>RunAtLoad</key>
-                    <true/>
-                </dict>
-                </plist>
-                """
-                with open(startup_file, 'w') as file:
-                    file.write(plist_content)
             elif os.path.exists(startup_file):
                 os.remove(startup_file)
     except Exception as e:
