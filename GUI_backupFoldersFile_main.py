@@ -10,9 +10,7 @@ import psutil
 from datetime import datetime
 from threading import Thread
 import time
-import gzip
 import win32com.client
-import gzip
 
 CONFIG_FILE = 'backup_config.json'
 SCRIPT_FILE = 'backupFoldersFiles_exceptionHandling.py'
