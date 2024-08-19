@@ -1,4 +1,7 @@
+from datetime import datetime
+import gzip
 import os
+from threading import Thread
 import time
 import shutil
 import hashlib
@@ -78,6 +81,56 @@ def backup_files(src_dir, dest_dir):
         logging.error(f"Error during backup process from {src_dir} to {dest_dir}: {e}")
         raise
 
+import os
+import gzip
+from datetime import datetime, timedelta
+
+def mtime(filepath):
+    return os.path.getmtime(filepath)
+
+def rotate_logs():
+    log_file = config.get('log_file', 'backup.log')
+    error_log_file = config.get('error_log_file', 'error.log')
+    one_day_ago = datetime.now().timestamp() - 86400  # 86400 seconds = 1 day
+
+    # Check if log_file exists and is older than one day
+    if os.path.exists(log_file):
+        if mtime(log_file) < one_day_ago:
+            new_log_file = f"{log_file}.{datetime.now().strftime('%Y-%m-%d')}.log.gz"
+            with open(log_file, 'rb') as f_in:
+                with gzip.open(new_log_file, 'wb') as f_out:
+                    f_out.writelines(f_in)
+            open(log_file, 'w').close()  # Clear the old log file
+    
+    # Check if error_log_file exists and is older than one day
+    if os.path.exists(error_log_file):
+        if mtime(error_log_file) < one_day_ago:
+            new_error_log_file = f"{error_log_file}.{datetime.now().strftime('%Y-%m-%d')}.log.gz"
+            with open(error_log_file, 'rb') as f_in:
+                with gzip.open(new_error_log_file, 'wb') as f_out:
+                    f_out.writelines(f_in)
+            open(error_log_file, 'w').close()  # Clear the old log file
+
+
+
+def move_gzipped_logs():
+    log_dir = config.get('log_dirs', '')
+    if not log_dir[0]:
+        logging.error("No log directories specified.")
+        return
+    if not os.path.exists(log_dir[0]):
+        logging.error(f"Log directory {log_dir[0]} does not exist.")
+        return
+    
+    # Move .log.gz files to the log directory
+    for file in os.listdir('.'):
+        if file.endswith('.log.gz'):
+            try:
+                shutil.move(file, os.path.join(log_dir[0], file))
+            except Exception as e:
+                logging.error(f"Failed to move {file}: {e}")
+
+
 if __name__ == "__main__":
     while True:
         # print(os.getcwd())
@@ -96,6 +149,15 @@ if __name__ == "__main__":
 
             # Logging configuration
             logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s %(message)s')
+            
+            ## Threads =================================================
+            # Rotate logs at startup
+            # rotate_logs()
+            # Start auto-refresh thread
+            rotate_logs_auto_thread = Thread(target=rotate_logs, daemon=True)
+            rotate_logs_auto_thread.start()
+            Gzip_logs_auto_thread = Thread(target=move_gzipped_logs, daemon=True)
+            Gzip_logs_auto_thread.start()
 
             if RUN_ENABLED == "Y":
                 for src_dir, dest_dir in zip(SOURCE_DIRS, DEST_DIRS):

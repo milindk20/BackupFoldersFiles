@@ -1,3 +1,4 @@
+import logging
 import os
 import platform
 import tkinter as tk
@@ -9,22 +10,22 @@ import psutil
 from datetime import datetime
 from threading import Thread
 import time
+import gzip
 import win32com.client
+import gzip
 
 CONFIG_FILE = 'backup_config.json'
 SCRIPT_FILE = 'backupFoldersFiles_exceptionHandling.py'
 AUTO_REFRESH_INTERVAL = 5  # seconds
-
 
 def load_config():
     try:
         with open(CONFIG_FILE, 'r') as file:
             return json.load(file)
     except Exception as e:
-        log_error(f"Failed to load config: {e}")
+        logging.error(f"Failed to load config: {e}")
         messagebox.showerror("Error", f"Failed to load configuration: {e}")
         return {}
-
 
 def save_config(data):
     try:
@@ -32,9 +33,8 @@ def save_config(data):
             json.dump(data, file, indent=4)
         update_timestamp()
     except Exception as e:
-        log_error(f"Failed to save config: {e}")
+        logging.error(f"Failed to save config: {e}")
         messagebox.showerror("Error", f"Failed to save configuration: {e}")
-
 
 def get_last_modified_time():
     try:
@@ -42,9 +42,8 @@ def get_last_modified_time():
             return os.path.getmtime(CONFIG_FILE)
         return None
     except Exception as e:
-        log_error(f"Failed to get last modified time: {e}")
+        logging.error(f"Failed to get last modified time: {e}")
         return None
-
 
 def update_timestamp():
     try:
@@ -55,8 +54,7 @@ def update_timestamp():
         else:
             timestamp_label.config(text="No configuration file found.")
     except Exception as e:
-        log_error(f"Failed to update timestamp: {e}")
-
+        logging.error(f"Failed to update timestamp: {e}")
 
 def toggle_service(enable):
     try:
@@ -65,9 +63,8 @@ def toggle_service(enable):
         save_config(config)
         update_home_status()
     except Exception as e:
-        log_error(f"Failed to toggle service: {e}")
+        logging.error(f"Failed to toggle service: {e}")
         messagebox.showerror("Error", f"Failed to toggle service: {e}")
-
 
 def is_script_running(script_name):
     try:
@@ -76,9 +73,8 @@ def is_script_running(script_name):
                 return True
         return False
     except Exception as e:
-        log_error(f"Failed to check if script is running: {e}")
+        logging.error(f"Failed to check if script is running: {e}")
         return False
-
 
 def update_home_status():
     try:
@@ -94,8 +90,7 @@ def update_home_status():
         else:
             script_status_label.config(text="Script Not Running", bg="red")
     except Exception as e:
-        log_error(f"Failed to update home status: {e}")
-
+        logging.error(f"Failed to update home status: {e}")
 
 def start_script():
     try:
@@ -104,9 +99,8 @@ def start_script():
             messagebox.showinfo("Script Started", "The backup script has started running.")
         update_home_status()
     except Exception as e:
-        log_error(f"Failed to start script: {e}")
+        logging.error(f"Failed to start script: {e}")
         messagebox.showerror("Error", f"Failed to start script: {e}")
-
 
 def stop_script():
     try:
@@ -116,9 +110,8 @@ def stop_script():
                 messagebox.showinfo("Script Stopped", "The backup script has been stopped.")
         update_home_status()
     except Exception as e:
-        log_error(f"Failed to stop script: {e}")
+        logging.error(f"Failed to stop script: {e}")
         messagebox.showerror("Error", f"Failed to stop script: {e}")
-
 
 def update_config():
     try:
@@ -126,6 +119,7 @@ def update_config():
             "run_enabled": run_enabled_var.get(),
             "source_dirs": src_dirs_entry.get().split(';'),
             "dest_dirs": dest_dirs_entry.get().split(';'),
+            "log_dirs": log_dirs_entry.get(),  # Add this line
             "log_file": log_file_entry.get(),
             "error_log_file": error_log_entry.get(),
             "sleep_time": int(sleep_time_entry.get()),
@@ -135,7 +129,7 @@ def update_config():
         set_run_at_startup(config['run_at_startup'])
         messagebox.showinfo("Success", "Configuration saved successfully!")
     except Exception as e:
-        log_error(f"Failed to save configuration: {e}")
+        logging.error(f"Failed to save configuration: {e}")
         messagebox.showerror("Error", f"Failed to save configuration: {e}")
 
 
@@ -149,9 +143,8 @@ def select_directory(entry_field):
             else:
                 entry_field.insert(tk.END, directory)
     except Exception as e:
-        log_error(f"Failed to select directory: {e}")
+        logging.error(f"Failed to select directory: {e}")
         messagebox.showerror("Error", f"Failed to select directory: {e}")
-
 
 def view_log(log_file, log_text_widget):
     try:
@@ -165,23 +158,9 @@ def view_log(log_file, log_text_widget):
             log_text_widget.delete(1.0, tk.END)
             log_text_widget.insert(tk.END, "Log file not found.")
     except Exception as e:
-        log_error(f"Failed to view log: {e}")
+        logging.error(f"Failed to view log: {e}")
         log_text_widget.delete(1.0, tk.END)
         log_text_widget.insert(tk.END, "Failed to view log.")
-
-
-def clear_log(log_file, log_text_widget):
-    try:
-        if os.path.exists(log_file):
-            with open(log_file, 'w') as file:
-                file.truncate(0)
-            log_text_widget.delete(1.0, tk.END)
-            log_text_widget.insert(tk.END, "Log cleared.")
-    except Exception as e:
-        log_error(f"Failed to clear log: {e}")
-        log_text_widget.delete(1.0, tk.END)
-        log_text_widget.insert(tk.END, "Failed to clear log.")
-
 
 def auto_refresh_logs(log_file, log_text_widget):
     while True:
@@ -189,8 +168,7 @@ def auto_refresh_logs(log_file, log_text_widget):
             view_log(log_file, log_text_widget)
             time.sleep(AUTO_REFRESH_INTERVAL)
         except Exception as e:
-            log_error(f"Failed to auto-refresh logs: {e}")
-
+            logging.error(f"Failed to auto-refresh logs: {e}")
 
 def set_run_at_startup(enable):
     system_platform = platform.system()
@@ -241,20 +219,7 @@ def set_run_at_startup(enable):
             elif os.path.exists(startup_file):
                 os.remove(startup_file)
     except Exception as e:
-        log_error(f"Failed to set run at startup: {e}")
-
-
-def log_error(message):
-    try:
-        # Log error to the error log file
-        with open(config.get('error_log_file', 'error.log'), 'a') as file:
-            file.write(f"{datetime.now()}: {message}\n")
-        # Also log error to the general log file
-        with open(config.get('log_file', 'backup.log'), 'a') as file:
-            file.write(f"{datetime.now()}: {message}\n")
-    except Exception as e:
-        print(f"Logging failed: {e}")  # Print to console as a last resort
-
+        logging.error(f"Failed to set run at startup: {e}")
 
 # Load the initial configuration and update the timestamp
 config = load_config()
@@ -301,7 +266,6 @@ log_frame.grid(row=1, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
 log_text = scrolledtext.ScrolledText(log_frame, width=90, height=15)
 log_text.pack(padx=10, pady=10)
 Button(log_frame, text="View/Reload Logs", command=lambda: view_log(config['log_file'], log_text)).pack(padx=10, pady=5)
-Button(log_frame, text="Clear Logs", command=lambda: clear_log(config['log_file'], log_text)).pack(padx=10, pady=5)
 
 ## Threads =================================================
 # Start auto-refresh thread
@@ -330,6 +294,15 @@ dest_dirs_entry.grid(row=2, column=1, padx=10, pady=5)
 dest_dirs_entry.insert(tk.END, ';'.join(config['dest_dirs']))
 Button(config_tab, text="Browse", command=lambda: select_directory(dest_dirs_entry)).grid(row=2, column=2, padx=5, pady=5)
 
+# Log Directories
+tk.Label(config_tab, text="Log Directories").grid(row=7, column=0, padx=10, pady=5, sticky="w")
+log_dirs_entry = Entry(config_tab, width=60)
+log_dirs_entry.grid(row=7, column=1, padx=10, pady=5)
+log_dirs_entry.insert(tk.END, ';'.join(config.get('log_dirs', '')))  # Default to empty if not set
+
+# Browse Button for Log Directories
+Button(config_tab, text="Browse", command=lambda: select_directory(log_dirs_entry)).grid(row=7, column=2, padx=5, pady=5)
+
 # Log File
 tk.Label(config_tab, text="Log File").grid(row=3, column=0, padx=10, pady=5, sticky="w")
 log_file_entry = Entry(config_tab, width=60)
@@ -355,14 +328,13 @@ run_at_startup_check = tk.Checkbutton(config_tab, variable=run_at_startup_var, o
 run_at_startup_check.grid(row=6, column=1, sticky="w")
 
 # Save Button
-Button(config_tab, text="Save Configuration", command=update_config).grid(row=7, column=1, pady=20)
+Button(config_tab, text="Save Configuration", command=update_config).grid(row=8, column=1, pady=20)
 
 # Timestamp Label
 timestamp_label = tk.Label(config_tab, text="Last Modified: ", fg="blue")
-timestamp_label.grid(row=8, column=1, padx=10, pady=10, sticky="w")
+timestamp_label.grid(row=9, column=1, padx=10, pady=10, sticky="w")
 
 # Error Tab
-
 error_log_frame = tk.LabelFrame(error_tab, text="Error Logs", padx=10, pady=10)
 error_log_frame.pack(fill="both", expand=True, padx=10, pady=10)
 error_log_text = scrolledtext.ScrolledText(error_log_frame, width=90, height=25)
