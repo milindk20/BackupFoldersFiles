@@ -8,5 +8,6 @@
     ],
     "log_file": "backupFoldersFiles.log",
     "error_log_file": "error.log",
-    "sleep_time": 30
+    "sleep_time": 30,
+    "run_at_startup": "N"
 }

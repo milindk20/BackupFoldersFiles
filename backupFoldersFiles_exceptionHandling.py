@@ -80,6 +80,7 @@ def backup_files(src_dir, dest_dir):
 
 if __name__ == "__main__":
     while True:
+        print(os.getcwd())
         try:
             # Load configuration from file
             with open('backup_config.json', 'r') as config_file:

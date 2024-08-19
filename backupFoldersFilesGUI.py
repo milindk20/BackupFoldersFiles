@@ -1,13 +1,17 @@
 import os
+import platform
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, scrolledtext
 import json
 import subprocess
 import psutil
 from datetime import datetime
+from threading import Thread
+import time
 
 CONFIG_FILE = 'backup_config.json'
 SCRIPT_FILE = 'backupFoldersFiles_exceptionHandling.py'
+AUTO_REFRESH_INTERVAL = 5  # seconds
 
 
 def load_config():
@@ -42,7 +46,6 @@ def toggle_service(enable):
     save_config(config)
     update_home_status()
 
-
 def is_script_running(script_name):
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         if proc.info['cmdline'] and script_name in proc.info['cmdline']:
@@ -67,6 +70,7 @@ def update_home_status():
 def start_script():
     if not is_script_running(SCRIPT_FILE):
         subprocess.Popen(["python", SCRIPT_FILE])
+        messagebox.showinfo("Script Started", "The backup script has started running.")
     update_home_status()
 
 
@@ -74,6 +78,7 @@ def stop_script():
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         if proc.info['cmdline'] and SCRIPT_FILE in proc.info['cmdline']:
             proc.terminate()
+            messagebox.showinfo("Script Stopped", "The backup script has been stopped.")
     update_home_status()
 
 
@@ -85,9 +90,11 @@ def update_config():
             "dest_dirs": dest_dirs_entry.get().split(';'),
             "log_file": log_file_entry.get(),
             "error_log_file": error_log_entry.get(),
-            "sleep_time": int(sleep_time_entry.get())
+            "sleep_time": int(sleep_time_entry.get()),
+            "run_at_startup": run_at_startup_var.get()
         }
         save_config(config)
+        set_run_at_startup(config['run_at_startup'])
         messagebox.showinfo("Success", "Configuration saved successfully!")
     except Exception as e:
         messagebox.showerror("Error", f"Failed to save configuration: {e}")
@@ -113,6 +120,62 @@ def view_log(log_file, log_text_widget):
     else:
         log_text_widget.delete(1.0, tk.END)
         log_text_widget.insert(tk.END, "Log file not found.")
+
+
+def clear_log(log_file, log_text_widget):
+    if os.path.exists(log_file):
+        with open(log_file, 'w') as file:
+            file.truncate(0)
+        log_text_widget.delete(1.0, tk.END)
+        log_text_widget.insert(tk.END, "Log cleared.")
+
+
+def auto_refresh_logs(log_file, log_text_widget):
+    while True:
+        view_log(log_file, log_text_widget)
+        time.sleep(AUTO_REFRESH_INTERVAL)
+
+
+def set_run_at_startup(enable):
+    system_platform = platform.system()
+    if system_platform == 'Windows':
+        startup_file = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', f"{SCRIPT_FILE}.bat")
+        if enable == 'Y':
+            with open(startup_file, 'w') as file:
+                #file.write(f'cd ')#add dynamic function to add the [ath of the script location]
+                file.write(f'python "{os.path.abspath(SCRIPT_FILE)}" &')
+        elif os.path.exists(startup_file):
+            os.remove(startup_file)
+    elif system_platform == 'Linux':
+        startup_file = os.path.expanduser(f'~/.config/autostart/{SCRIPT_FILE}.desktop')
+        if enable == 'Y':
+            with open(startup_file, 'w') as file:
+                file.write(f'[Desktop Entry]\nType=Application\nExec=python3 "{os.path.abspath(SCRIPT_FILE)}"\nHidden=false\nNoDisplay=false\nX-GNOME-Autostart-enabled=true\nName={SCRIPT_FILE}')
+        elif os.path.exists(startup_file):
+            os.remove(startup_file)
+    elif system_platform == 'Darwin':  # macOS
+        startup_file = os.path.expanduser(f'~/Library/LaunchAgents/{SCRIPT_FILE}.plist')
+        if enable == 'Y':
+            plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>Label</key>
+                <string>{SCRIPT_FILE}</string>
+                <key>ProgramArguments</key>
+                <array>
+                    <string>python3</string>
+                    <string>{os.path.abspath(SCRIPT_FILE)}</string>
+                </array>
+                <key>RunAtLoad</key>
+                <true/>
+            </dict>
+            </plist>
+            """
+            with open(startup_file, 'w') as file:
+                file.write(plist_content)
+        elif os.path.exists(startup_file):
+            os.remove(startup_file)
 
 
 # Load the initial configuration and update the timestamp
@@ -160,6 +223,11 @@ log_frame.grid(row=1, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
 log_text = scrolledtext.ScrolledText(log_frame, width=90, height=15)
 log_text.pack(padx=10, pady=10)
 tk.Button(log_frame, text="View Logs", command=lambda: view_log(config['log_file'], log_text)).pack(padx=10, pady=5)
+tk.Button(log_frame, text="Clear Logs", command=lambda: clear_log(config['log_file'], log_text)).pack(padx=10, pady=5)
+
+# Start auto-refresh thread
+log_auto_refresh_thread = Thread(target=auto_refresh_logs, args=(config['log_file'], log_text), daemon=True)
+log_auto_refresh_thread.start()
 
 # Configuration Tab
 
@@ -201,12 +269,18 @@ sleep_time_entry = tk.Entry(config_tab, width=60)
 sleep_time_entry.grid(row=5, column=1, padx=10, pady=5)
 sleep_time_entry.insert(tk.END, config['sleep_time'])
 
+# Run at Startup Checkbox
+tk.Label(config_tab, text="Run at Startup").grid(row=6, column=0, padx=10, pady=5, sticky="w")
+run_at_startup_var = tk.StringVar(value=config.get('run_at_startup', 'N'))
+run_at_startup_check = tk.Checkbutton(config_tab, variable=run_at_startup_var, onvalue='Y', offvalue='N')
+run_at_startup_check.grid(row=6, column=1, sticky="w")
+
 # Save Button
-tk.Button(config_tab, text="Save Configuration", command=update_config).grid(row=6, column=1, pady=20)
+tk.Button(config_tab, text="Save Configuration", command=update_config).grid(row=7, column=1, pady=20)
 
 # Timestamp Label
 timestamp_label = tk.Label(config_tab, text="Last Modified: ", fg="blue")
-timestamp_label.grid(row=7, column=1, padx=10, pady=10, sticky="w")
+timestamp_label.grid(row=8, column=1, padx=10, pady=10, sticky="w")
 
 # Error Tab
 
