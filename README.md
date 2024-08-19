@@ -1,4 +1,4 @@
-Backup Files And Folders Tool
+#Backup Files And Folders Tool
 Code Explanation
 backupFoldersFiles.py
 This Python script is designed to back up files from specified source directories to corresponding destination directories. It includes features like checksum verification, file permission preservation, and error logging. Let's break down the code section by section:
