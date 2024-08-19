@@ -7,7 +7,7 @@ import psutil
 from datetime import datetime
 
 CONFIG_FILE = 'backup_config.json'
-SCRIPT_FILE = 'backupFoldersFiles.py'
+SCRIPT_FILE = 'backupFoldersFiles_exceptionHandling.py'
 
 
 def load_config():
