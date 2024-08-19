@@ -9,6 +9,8 @@ from datetime import datetime
 from threading import Thread
 import time
 
+import win32com
+
 CONFIG_FILE = 'backup_config.json'
 SCRIPT_FILE = 'backupFoldersFiles_exceptionHandling.py'
 AUTO_REFRESH_INTERVAL = 5  # seconds
@@ -137,15 +139,22 @@ def auto_refresh_logs(log_file, log_text_widget):
 
 
 def set_run_at_startup(enable):
-    system_platform = platform.system()
+    system_platform = platform.system()    
     if system_platform == 'Windows':
-        startup_file = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', f"{SCRIPT_FILE}.bat")
+        # Path to the Startup folder
+        startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
+        shortcut_path = os.path.join(startup_folder, f"{SCRIPT_FILE}.lnk")
+        
         if enable == 'Y':
-            with open(startup_file, 'w') as file:
-                #file.write(f'cd ')#add dynamic function to add the [ath of the script location]
-                file.write(f'python "{os.path.abspath(SCRIPT_FILE)}" &')
-        elif os.path.exists(startup_file):
-            os.remove(startup_file)
+            # Create a shortcut
+            shell = win32com.client.Dispatch("WScript.Shell")
+            shortcut = shell.CreateShortcut(shortcut_path)
+            shortcut.TargetPath = os.path.abspath(SCRIPT_FILE)
+            shortcut.WorkingDirectory = os.path.dirname(os.path.abspath(SCRIPT_FILE))
+            shortcut.IconLocation = os.path.abspath(SCRIPT_FILE)
+            shortcut.Save()
+        elif os.path.exists(shortcut_path):
+            os.remove(shortcut_path)
     elif system_platform == 'Linux':
         startup_file = os.path.expanduser(f'~/.config/autostart/{SCRIPT_FILE}.desktop')
         if enable == 'Y':
@@ -225,6 +234,7 @@ log_text.pack(padx=10, pady=10)
 tk.Button(log_frame, text="View Logs", command=lambda: view_log(config['log_file'], log_text)).pack(padx=10, pady=5)
 tk.Button(log_frame, text="Clear Logs", command=lambda: clear_log(config['log_file'], log_text)).pack(padx=10, pady=5)
 
+##Threads================================================
 # Start auto-refresh thread
 log_auto_refresh_thread = Thread(target=auto_refresh_logs, args=(config['log_file'], log_text), daemon=True)
 log_auto_refresh_thread.start()
