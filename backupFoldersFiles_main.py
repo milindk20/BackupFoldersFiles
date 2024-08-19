@@ -151,8 +151,7 @@ if __name__ == "__main__":
             logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s %(message)s')
             
             ## Threads =================================================
-            # Rotate logs at startup
-            # rotate_logs()
+
             # Start auto-refresh thread
             rotate_logs_auto_thread = Thread(target=rotate_logs, daemon=True)
             rotate_logs_auto_thread.start()

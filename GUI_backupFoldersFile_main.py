@@ -265,11 +265,6 @@ log_text = scrolledtext.ScrolledText(log_frame, width=90, height=15)
 log_text.pack(padx=10, pady=10)
 Button(log_frame, text="View/Reload Logs", command=lambda: view_log(config['log_file'], log_text)).pack(padx=10, pady=5)
 
-## Threads =================================================
-# Start auto-refresh thread
-log_auto_refresh_thread = Thread(target=auto_refresh_logs, args=(config['log_file'], log_text), daemon=True)
-log_auto_refresh_thread.start()
-
 # Configuration Tab
 
 # Run Enabled
@@ -347,3 +342,9 @@ update_home_status()
 
 # Run the GUI loop
 root.mainloop()
+
+
+## Threads =================================================
+# Start auto-refresh thread
+log_auto_refresh_thread = Thread(target=auto_refresh_logs, args=(config['log_file'], log_text), daemon=True)
+log_auto_refresh_thread.start()
